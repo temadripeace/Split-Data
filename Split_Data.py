@@ -20,6 +20,7 @@ st.markdown("<h3 style='text-align: center;'> Split Groupped Data</h3>", unsafe_
 
 
 st.set_page_config(page_title="Split Data by Country", layout="centered")
+st.config.set_option('server.maxUploadSize', 2048)
 
 st.title("🌍 Split CSV / Excel / GeoJSON / KML by Country")
 
@@ -128,4 +129,5 @@ if uploaded_file is not None:
     except Exception as e:
 
         st.error(f"❌ Error: {e}")
+
 
