@@ -15,11 +15,29 @@ with col2:
 st.markdown("<h3 style='text-align: center;'> Split Groupped Data</h3>", unsafe_allow_html=True)
 
 # ------------------ App Description ------------------
+st.markdown("<h3 style='text-align: center;'>Geographic Coordinate Formatting Tool - 6DP</h3>", unsafe_allow_html=True)
+
+# ------------------ App Description ------------------
+st.markdown(
+    """
+    <div style="text-align: justify; font-size: 16px;">
+        This tool formats plot coordinates to <b>six decimal places</b> in compliance with <b>EUDR requirements</b>.
+
+        
+        It supports importing files in <b>CSV</b>, <b>Excel</b>, or <b>GeoJSON</b> format.
+        <br><br>
+        <b>Required column names:</b>
+        <ul>
+            <li><b>Longitude/Latitude</b>: <code>long</code>, <code>lat</code>, <code>longitude</code>, <code>latitude</code>, <code>plot_longitude</code>, <code>plot_latitude</code></li>
+            <li><b>WKT format</b>: <code>gps_point</code>, <code>gps_polygon</code>, <code>plot_gps_point</code>, <code>plot_gps_polygon</code>, <code>plot_wkt</code>, <code>WKT</code>, <code>geometry</code></li>
+        </ul>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 
 
-
-st.set_page_config(page_title="Split Data by Country", layout="centered")
 st.config.set_option('server.maxUploadSize', 2048)
 
 st.title("🌍 Split CSV / Excel / GeoJSON / KML by Country")
@@ -129,5 +147,6 @@ if uploaded_file is not None:
     except Exception as e:
 
         st.error(f"❌ Error: {e}")
+
 
 
