@@ -71,7 +71,7 @@ if uploaded_file is not None:
         # Grouping column
         # -----------------------------
         group_col = st.selectbox(
-            "Select column to group by",
+            "Select grouped column to split by",
             df.columns,
             index=df.columns.get_loc("Country") if "Country" in df.columns else 0
         )
@@ -142,6 +142,7 @@ if uploaded_file is not None:
     except Exception as e:
 
         st.error(f"❌ Error: {e}")
+
 
 
 
