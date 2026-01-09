@@ -24,7 +24,45 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
-# ------------------ App Description ------------------
+
+# ----------------------------------------Convert to GeoDataFrame ----------------------------------------
+def convert_to_geodf(df):
+    wkt_columns = [col for col in df.columns if col.lower() in [
+        "gps_point", "gps_polygon", "plot_gps_point", "plot_gps_polygon", "plot_wkt", "wkt", "geometry"
+    ]]
+    
+    # Try WKT columns one by one
+    for wkt_col in wkt_columns:
+        try:
+            # Attempt to parse WKT only where values are non-null/non-empty
+            parsed = df[wkt_col].apply(lambda x: wkt.loads(str(x)) if pd.notnull(x) and str(x).strip() != '' else None)
+            # Check if at least one valid geometry parsed
+            if parsed.notnull().any():
+                df[wkt_col] = parsed
+                return gpd.GeoDataFrame(df, geometry=wkt_col, crs="EPSG:4326")
+        except Exception as e:
+            # Log or show warning but keep trying other columns
+            st.warning(f"⚠ Could not parse WKT column '{wkt_col}': {e}")
+            continue
+
+    # If no WKT columns succeeded, try lat/lon columns
+    lon_candidates = [col for col in df.columns if "lon" in col.lower()]
+    lat_candidates = [col for col in df.columns if "lat" in col.lower()]
+    if lon_candidates and lat_candidates:
+        lon_col = lon_candidates[0]
+        lat_col = lat_candidates[0]
+        try:
+            geometry = gpd.points_from_xy(df[lon_col], df[lat_col])
+            return gpd.GeoDataFrame(df.copy(), geometry=geometry, crs="EPSG:4326")
+        except Exception as e:
+            st.warning(f"⚠ Could not create geometry from lat/lon: {e}")
+
+    st.warning("⚠ No valid geometry found (WKT or Lat/Lon). GeoJSON/KML export may not work.")
+    return df
+
+
+
+# ------------------ ---------------------File Processing -------------------------------------------------
 
 
 
@@ -67,7 +105,60 @@ if uploaded_file is not None:
         st.success("✅ File loaded successfully!")
         st.dataframe(df.head())
 
-        # -----------------------------
+
+
+        
+        
+        # -----------------------------.............................................................
+
+        if uploaded_file:
+    ext = os.path.splitext(uploaded_file.name)[1].lower()
+
+    try:
+        # Step 1: Load as plain DataFrame
+        if ext == ".csv":
+            Data = pd.read_csv(uploaded_file)
+        elif ext in [".xlsx", ".xls"]:
+            Data = pd.read_excel(uploaded_file)
+        elif ext in [".geojson", ".json", ".kml"]:
+            gdf_temp = gpd.read_file(uploaded_file, driver="KML" if ext == ".kml" else None)
+            Data = pd.DataFrame(gdf_temp)  # Temporarily drop geometry to process as text
+            if "geometry" in Data.columns:
+                Data["geometry"] = Data["geometry"].apply(lambda g: g.wkt if g is not None else None)
+        else:
+            st.error("❌ Unsupported file format")
+            st.stop()
+
+        # Step 2: Format lat/lon columns
+        lat_lon_cols = ['plot_longitude', 'plot_latitude', 'longitute', 'latitute', 'log', 'lat']
+        for col in lat_lon_cols:
+            if col in Data.columns:
+                Data[col] = Data[col].apply(lambda x: format_coord(x) if pd.notnull(x) else x)
+                # Convert back to float
+                try:
+                    Data[col] = Data[col].astype(float)
+                except:
+                    pass
+
+        # Step 3: Format WKT columns
+        wkt_cols = ['plot_gps_point', 'plot_gps_polygon', 'gps_point', 'gps_polygon', 'plot_wkt', 'WKT','wkt', 'geometry', 'Geometry', 'GEOMETRY' ]
+        for col in wkt_cols:
+            if col in Data.columns:
+                Data[col] = Data[col].apply(lambda x: apply_n_times(process_wkt, x, 2) if pd.notnull(x) else x)
+
+        # Step 4: Convert to GeoDataFrame
+        Data = convert_to_geodf(Data)
+
+        # Step 5: Display processed data
+        st.markdown("<h3 style='text-align: left;'>Processed Data Table</h3>", unsafe_allow_html=True)
+        st.dataframe(Data)
+
+
+
+
+
+
+        
         # Grouping column
         # -----------------------------
         group_col = st.selectbox(
@@ -140,6 +231,7 @@ if uploaded_file is not None:
     except Exception as e:
 
         st.error(f"❌ Error: {e}")
+
 
 
 
