@@ -132,25 +132,17 @@ if uploaded_file is not None:
         zip_buffer.seek(0)
 
         st.download_button(
-            "⬇️ Download grouped files (ZIP)",
+            "⬇Download Files (ZIP)",
             data=zip_buffer,
-            file_name="grouped_output_files.zip",
+            file_name="Split_Data.zip",
             mime="application/zip"
         )
-
-        # Step 6: Download button
-        if file_data:
-            st.download_button(
-                label=f"⬇ Download {format_choice}",
-                data=file_data,
-                file_name=file_name,
-                mime=mime_type
-            )
 
     
     except Exception as e:
 
         st.error(f"❌ Error: {e}")
+
 
 
 
