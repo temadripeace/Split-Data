@@ -18,16 +18,12 @@ st.markdown("<h3 style='text-align: center;'>Grouped Data Splitingg Tool</h3>", 
 st.markdown(
     """
     <div style="text-align: justify; font-size: 16px;">
-        This tool splits the grouped data 
-        It supports importing files in <b>CSV</b>, <b>Excel</b>, or <b>GeoJSON</b> format.
+        This tool splits grouped tabular or spatial data by a selected attribute and exports each group as a separate file. 
+        It supports imports and exports of <b>CSV</b>, <b>Excel</b>, <b>KML</b>, and <b>GeoJSON</b> file formats.
         <br><br>
-        <b>Required column names:</b>
-        <ul>
-            <li><b>Longitude/Latitude</b>: <code>long</code>, <code>lat</code>, <code>longitude</code>, <code>latitude</code>, <code>plot_longitude</code>, <code>plot_latitude</code></li>
-            <li><b>WKT format</b>: <code>gps_point</code>, <code>gps_polygon</code>, <code>plot_gps_point</code>, <code>plot_gps_polygon</code>, <code>plot_wkt</code>, <code>WKT</code>, <code>geometry</code></li>
-        </ul>
+        
     </div>
-    """,
+    "",
     unsafe_allow_html=True
 )
 
@@ -141,6 +137,7 @@ if uploaded_file is not None:
     except Exception as e:
 
         st.error(f"❌ Error: {e}")
+
 
 
 
