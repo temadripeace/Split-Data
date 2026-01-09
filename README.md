@@ -1,0 +1,1 @@
+This tool automatically splits grouped tabular or spatial data by a selected attribute and exports each group as a separate file. It supports multiple output formats, including CSV, Excel, GeoJSON, and KML, making it suitable for both data management and GIS workflows.
