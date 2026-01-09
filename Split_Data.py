@@ -138,9 +138,20 @@ if uploaded_file is not None:
             mime="application/zip"
         )
 
+        # Step 6: Download button
+        if file_data:
+            st.download_button(
+                label=f"⬇ Download {format_choice}",
+                data=file_data,
+                file_name=file_name,
+                mime=mime_type
+            )
+
+    
     except Exception as e:
 
         st.error(f"❌ Error: {e}")
+
 
 
 
