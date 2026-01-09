@@ -81,7 +81,7 @@ if uploaded_file is not None:
         output_formats = st.multiselect(
             "Select output format(s)",
             ["CSV", "Excel", "GeoJSON", "KML"],
-            default=["CSV"]
+            default=[]
         )
 
         if ("GeoJSON" in output_formats or "KML" in output_formats) and not is_spatial:
@@ -141,6 +141,7 @@ if uploaded_file is not None:
     except Exception as e:
 
         st.error(f"❌ Error: {e}")
+
 
 
 
