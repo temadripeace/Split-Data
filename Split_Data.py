@@ -27,10 +27,15 @@ st.markdown(
 # ------------------ App Description ------------------
 
 
+
+
+# ------------------------------------- Streamlit Page Setup ---------------------------------------------
+st.set_page_config(page_title="File Viewer", layout="centered")
+
+st.markdown("<h3 style='text-align: left;'>📂 Upload Data</h3>", unsafe_allow_html=True)
+
+# ------------------ -----------Coordinate Processing Functions ------------------------------------------
 st.config.set_option('server.maxUploadSize', 2048)
-
-st.title("🌍 Split CSV / Excel / GeoJSON / KML by Country")
-
 uploaded_file = st.file_uploader(
     "Upload a file",
     type=["csv", "xls", "xlsx", "geojson", "json", "kml"]
@@ -136,6 +141,7 @@ if uploaded_file is not None:
     except Exception as e:
 
         st.error(f"❌ Error: {e}")
+
 
 
 
