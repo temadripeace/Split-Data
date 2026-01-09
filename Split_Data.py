@@ -3,36 +3,79 @@ import pandas as pd
 import geopandas as gpd
 import re
 import zipfile
+import tempfile
+import os
 from io import BytesIO
+from shapely import wkt
+from shapely.errors import WKTReadingError
 
+# ---------------- Page Config ----------------
+st.set_page_config(page_title="Grouped Data Splitting Tool", layout="centered")
 
-
-
-col1, col2, col3 = st.columns([1, 3, 1])  # Left, Center, Right columns
+# ---------------- Header ----------------
+col1, col2, col3 = st.columns([1, 3, 1])
 with col2:
     st.image("Sucafina Logo.jpg", width=500)
 
-st.markdown("<h3 style='text-align: center;'>Grouped Data Splitingg Tool</h3>", unsafe_allow_html=True)
+st.markdown("<h3 style='text-align:center;'>Grouped Data Splitting Tool</h3>", unsafe_allow_html=True)
 
-# ------------------ App Description ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 st.markdown(
     """
     <div style="text-align: justify; font-size: 16px;">
-        This tool splits grouped tabular or spatial data by a selected attribute and exports each group as a separate file. 
-        It supports imports and exports of <b>CSV</b>, <b>Excel</b>, <b>KML</b>, and <b>GeoJSON</b> file formats.
+        This tool splits grouped tabular or spatial data by a selected attribute and exports each group as a separate file.
+        Supported formats: <b>CSV</b>, <b>Excel</b>, <b>GeoJSON</b>, and <b>KML</b>.
     </div>
     """,
     unsafe_allow_html=True
 )
-# ------------------------------------- Streamlit Page Setup ------------------------------------------------------------------------------------------------------------------------------------------------------
-st.set_page_config(page_title="File Viewer", layout="centered")
 
-st.markdown("<h3 style='text-align: left;'>📂 Upload Data</h3>", unsafe_allow_html=True)
+# ---------------- Geometry Conversion ----------------
+def convert_to_geodf(df):
+    wkt_columns = [
+        col for col in df.columns
+        if col.lower() in {
+            "gps_point", "gps_polygon", "plot_gps_point",
+            "plot_gps_polygon", "plot_wkt", "wkt", "geometry"
+        }
+    ]
 
-# ------------------ -----------Coordinate Processing Functions ------------------------------------------...................................................................................
-st.config.set_option('server.maxUploadSize', 2048)
+    # Try WKT columns
+    for wkt_col in wkt_columns:
+        try:
+            parsed = df[wkt_col].apply(
+                lambda x: wkt.loads(str(x))
+                if pd.notnull(x) and str(x).strip() != ""
+                else None
+            )
+
+            if parsed.notnull().any():
+                return gpd.GeoDataFrame(
+                    df.copy(),
+                    geometry=parsed,
+                    crs="EPSG:4326"
+                )
+        except (WKTReadingError, Exception):
+            continue
+
+    # Try Lat/Lon fallback
+    lon_cols = [c for c in df.columns if "lon" in c.lower()]
+    lat_cols = [c for c in df.columns if "lat" in c.lower()]
+
+    if lon_cols and lat_cols:
+        try:
+            geometry = gpd.points_from_xy(df[lon_cols[0]], df[lat_cols[0]])
+            return gpd.GeoDataFrame(df.copy(), geometry=geometry, crs="EPSG:4326")
+        except Exception:
+            pass
+
+    return df
+
+
+# ---------------- Upload ----------------
+st.markdown("<h4>📂 Upload Data</h4>", unsafe_allow_html=True)
+
 uploaded_file = st.file_uploader(
-    "Upload a file",
+    "Upload CSV, Excel, GeoJSON, or KML",
     type=["csv", "xls", "xlsx", "geojson", "json", "kml"]
 )
 
@@ -41,117 +84,100 @@ if uploaded_file is not None:
         file_name = uploaded_file.name.lower()
         is_spatial = False
 
-        # -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-        # Read input file
-       # ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+        # -------- Read file --------
         if file_name.endswith(".csv"):
             df = pd.read_csv(uploaded_file)
+            df = convert_to_geodf(df)
 
         elif file_name.endswith((".xls", ".xlsx")):
             df = pd.read_excel(uploaded_file)
+            df = convert_to_geodf(df)
 
         elif file_name.endswith((".geojson", ".json", ".kml")):
-            gdf = gpd.read_file(uploaded_file)
-            df = gdf
-            is_spatial = True
+            df = gpd.read_file(uploaded_file)
 
         else:
             st.error("Unsupported file format.")
             st.stop()
 
-        st.success("✅ File loaded successfully!")
+        # -------- Detect spatial --------
+        is_spatial = isinstance(df, gpd.GeoDataFrame)
+
+        st.success("✅ File loaded successfully")
         st.dataframe(df.head())
 
+        # -------- Grouping column --------
+        group_col = st.selectbox("Select column to split by", df.columns)
 
-
-        
-        
-        # -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-        # Grouping column
-        # -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-        group_col = st.selectbox(
-            "Select grouped column to split by",
-            df.columns
-        )       
-        # -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-        # Output formats
-        # -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+        # -------- Output formats --------
         output_formats = st.multiselect(
             "Select output format(s)",
-            ["CSV", "Excel", "GeoJSON", "KML"],
-            default=[]
+            ["CSV", "Excel", "GeoJSON", "KML"]
         )
 
         if ("GeoJSON" in output_formats or "KML" in output_formats) and not is_spatial:
-            st.warning("⚠️ GeoJSON and KML require geometry. They will be skipped.")
+            st.warning("⚠ GeoJSON and KML require valid geometry. They will be skipped.")
 
-      # -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-        # Create ZIP
-      # -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+        # -------- Create ZIP --------
         zip_buffer = BytesIO()
 
         with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
             for value, group in df.groupby(group_col):
-                value_str = str(value)
-                clean_name = re.sub(r'[<>:"/\\|?*{}]+', "_", value_str).strip("_")
+                clean_name = re.sub(r'[<>:"/\\|?*{}]+', "_", str(value)).strip("_")
                 if not clean_name:
                     clean_name = "UNKNOWN"
 
-                # CSV
+                # ----- CSV -----
                 if "CSV" in output_formats:
-                    csv_data = (
-                        group.drop(columns="geometry")
-                        if is_spatial else group
-                    ).to_csv(index=False)
-                    zip_file.writestr(f"{clean_name}.csv", csv_data)
+                    csv_df = group.drop(columns="geometry", errors="ignore")
+                    zip_file.writestr(
+                        f"{clean_name}.csv",
+                        csv_df.to_csv(index=False)
+                    )
 
-                # Excel
+                # ----- Excel -----
                 if "Excel" in output_formats:
                     excel_buffer = BytesIO()
-                    (
-                        group.drop(columns="geometry")
-                        if is_spatial else group
-                    ).to_excel(excel_buffer, index=False)
-                    zip_file.writestr(f"{clean_name}.xlsx", excel_buffer.getvalue())
+                    group.drop(columns="geometry", errors="ignore").to_excel(
+                        excel_buffer, index=False
+                    )
+                    zip_file.writestr(
+                        f"{clean_name}.xlsx",
+                        excel_buffer.getvalue()
+                    )
 
-                # GeoJSON
-                if "GeoJSON" in output_formats and is_spatial:
-                    geojson_buffer = BytesIO()
-                    group.to_file(geojson_buffer, driver="GeoJSON")
-                    zip_file.writestr(f"{clean_name}.geojson", geojson_buffer.getvalue())
+                # ----- Spatial exports -----
+                if is_spatial:
+                    spatial_group = group[group.geometry.notnull()]
 
-                # KML
-                if "KML" in output_formats and is_spatial:
-                    kml_buffer = BytesIO()
-                    group.to_file(kml_buffer, driver="KML")
-                    zip_file.writestr(f"{clean_name}.kml", kml_buffer.getvalue())
+                    if spatial_group.empty:
+                        continue
+
+                    spatial_group = spatial_group.to_crs(epsg=4326)
+
+                    with tempfile.TemporaryDirectory() as tmpdir:
+                        # GeoJSON
+                        if "GeoJSON" in output_formats:
+                            geojson_path = os.path.join(tmpdir, f"{clean_name}.geojson")
+                            spatial_group.to_file(geojson_path, driver="GeoJSON")
+                            with open(geojson_path, "rb") as f:
+                                zip_file.writestr(f"{clean_name}.geojson", f.read())
+
+                        # KML
+                        if "KML" in output_formats:
+                            kml_path = os.path.join(tmpdir, f"{clean_name}.kml")
+                            spatial_group.to_file(kml_path, driver="KML")
+                            with open(kml_path, "rb") as f:
+                                zip_file.writestr(f"{clean_name}.kml", f.read())
 
         zip_buffer.seek(0)
 
         st.download_button(
-            "⬇Download Files (ZIP)",
+            "⬇ Download Split Files (ZIP)",
             data=zip_buffer,
             file_name="Split_Data.zip",
             mime="application/zip"
         )
 
-    
     except Exception as e:
-
         st.error(f"❌ Error: {e}")
-
-       # -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-
-
-
-
-
-
-
-
-
-
-
-
-
