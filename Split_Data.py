@@ -5,6 +5,20 @@ import re
 import zipfile
 from io import BytesIO
 
+
+
+
+col1, col2, col3 = st.columns([1, 3, 1])  # Left, Center, Right columns
+with col2:
+    st.image("Sucafina Logo.jpg", width=500)
+
+st.markdown("<h3 style='text-align: center;'>Geographic Coordinate Formatting Tool - 6DP</h3>", unsafe_allow_html=True)
+
+# ------------------ App Description ------------------
+
+
+
+
 st.set_page_config(page_title="Split Data by Country", layout="centered")
 
 st.title("🌍 Split CSV / Excel / GeoJSON / KML by Country")
@@ -112,4 +126,5 @@ if uploaded_file is not None:
         )
 
     except Exception as e:
+
         st.error(f"❌ Error: {e}")
