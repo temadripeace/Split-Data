@@ -20,12 +20,11 @@ st.markdown(
     <div style="text-align: justify; font-size: 16px;">
         This tool splits grouped tabular or spatial data by a selected attribute and exports each group as a separate file. 
         It supports imports and exports of <b>CSV</b>, <b>Excel</b>, <b>KML</b>, and <b>GeoJSON</b> file formats.
-        <br><br>
-        
     </div>
-    "",
+    """,
     unsafe_allow_html=True
 )
+# ------------------ App Description ------------------
 
 
 st.config.set_option('server.maxUploadSize', 2048)
@@ -137,6 +136,7 @@ if uploaded_file is not None:
     except Exception as e:
 
         st.error(f"❌ Error: {e}")
+
 
 
 
