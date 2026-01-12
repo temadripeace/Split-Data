@@ -72,6 +72,8 @@ def convert_to_geodf(df):
 
 
 # ---------------- Upload ----------------
+st.config.set_option('server.maxUploadSize', 2048)
+
 st.markdown("<h4>📂 Upload Data</h4>", unsafe_allow_html=True)
 
 uploaded_file = st.file_uploader(
@@ -181,3 +183,4 @@ if uploaded_file is not None:
 
     except Exception as e:
         st.error(f"❌ Error: {e}")
+
