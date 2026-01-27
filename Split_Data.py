@@ -7,7 +7,7 @@ import tempfile
 import os
 from io import BytesIO
 from shapely import wkt
-from shapely.errors import WKTReadingError
+from shapely.errors import ShapelyError
 
 # ---------------- Page Config ----------------
 st.set_page_config(
@@ -34,19 +34,18 @@ st.markdown(
 
 # ---------------- Helpers ----------------
 def safe_name(value):
-    """Sanitize filenames for safe paths"""
     name = re.sub(r'[<>:"/\\|?*{}]+', "_", str(value)).strip("_")
     return name if name else "UNKNOWN"
 
 def convert_to_geodf(df):
-    """Convert DataFrame to GeoDataFrame if it has WKT or lat/lon columns"""
     wkt_columns = [
         col for col in df.columns
         if col.lower() in {
             "gps_point", "gps_polygon", "plot_gps_point",
-            "plot_gps_polygon", "plot_wkt", "wkt", "WKT" "geometry"
+            "plot_gps_polygon", "plot_wkt", "wkt", "geometry"
         }
     ]
+
     for col in wkt_columns:
         try:
             geom = df[col].apply(
@@ -54,7 +53,7 @@ def convert_to_geodf(df):
             )
             if geom.notnull().any():
                 return gpd.GeoDataFrame(df.copy(), geometry=geom, crs="EPSG:4326")
-        except (WKTReadingError, Exception):
+        except (ShapelyError, Exception):
             pass
 
     lon_cols = [c for c in df.columns if "lon" in c.lower()]
@@ -71,7 +70,6 @@ def convert_to_geodf(df):
 # ---------------- Cache Data Loading ----------------
 @st.cache_data(show_spinner=True)
 def load_and_merge_files(uploaded_file):
-    """Load CSV/Excel/GeoJSON/KML files from a ZIP or single file and merge them immediately"""
     all_dfs = []
     file_count = 0
 
@@ -87,51 +85,46 @@ def load_and_merge_files(uploaded_file):
                 df = gpd.read_file(file_path)
             else:
                 return None
+
             df = convert_to_geodf(df)
             if df is not None:
                 file_count += 1
             return df
-        except:
+        except Exception:
             return None
 
-    # -------- Handle ZIP --------
     if uploaded_file.name.lower().endswith(".zip"):
         with tempfile.TemporaryDirectory() as tmp_dir:
             with zipfile.ZipFile(uploaded_file, "r") as zip_ref:
                 zip_ref.extractall(tmp_dir)
 
-            # Walk recursively and process files on the fly
-            for root, dirs, files in os.walk(tmp_dir):
+            for root, _, files in os.walk(tmp_dir):
                 for file in files:
-                    file_path = os.path.join(root, file)
-                    df = process_file(file_path)
+                    df = process_file(os.path.join(root, file))
                     if df is not None:
                         all_dfs.append(df)
     else:
-        # Single file
         with tempfile.TemporaryDirectory() as tmp_dir:
-            temp_path = os.path.join(tmp_dir, uploaded_file.name)
-            with open(temp_path, "wb") as f:
+            path = os.path.join(tmp_dir, uploaded_file.name)
+            with open(path, "wb") as f:
                 f.write(uploaded_file.getbuffer())
-            df = process_file(temp_path)
+            df = process_file(path)
             if df is not None:
                 all_dfs.append(df)
 
     if not all_dfs:
         return None, 0
 
-    # Merge all files
     is_spatial = any(isinstance(d, gpd.GeoDataFrame) for d in all_dfs)
-    if is_spatial:
-        combined_df = gpd.GeoDataFrame(pd.concat(all_dfs, ignore_index=True), crs="EPSG:4326")
-    else:
-        combined_df = pd.concat(all_dfs, ignore_index=True)
+    combined_df = (
+        gpd.GeoDataFrame(pd.concat(all_dfs, ignore_index=True), crs="EPSG:4326")
+        if is_spatial else
+        pd.concat(all_dfs, ignore_index=True)
+    )
 
     return combined_df, file_count
 
 # ---------------- Upload ----------------
-st.set_page_config(page_title="File Viewer", layout="centered")
-
 st.markdown("<h3 style='text-align: left;'>📂 Upload Data</h3>", unsafe_allow_html=True)
 
 uploaded_file = st.file_uploader(
@@ -141,17 +134,18 @@ uploaded_file = st.file_uploader(
 
 if uploaded_file:
     combined_df, file_count = load_and_merge_files(uploaded_file)
+
     if combined_df is None:
         st.error("❌ No valid files found to merge.")
         st.stop()
 
     st.success(f"✅ File(s) loaded and merged successfully ({file_count} files)")
-    st.dataframe(combined_df.head())
+    st.dataframe(combined_df.drop(columns="geometry", errors="ignore").head())
 
-    # ---------------- Split Controls ----------------
     split_col_1 = st.selectbox("Select column to split by", combined_df.columns)
     enable_second_split = st.checkbox("Add another split level")
     split_col_2 = None
+
     if enable_second_split:
         split_col_2 = st.selectbox(
             "Select second split column",
@@ -164,10 +158,7 @@ if uploaded_file:
     )
 
     is_spatial = isinstance(combined_df, gpd.GeoDataFrame)
-    if ("GeoJSON" in output_formats or "KML" in output_formats) and not is_spatial:
-        st.warning("⚠ Spatial formats require valid geometry and will be skipped.")
 
-    # ---------------- Export ----------------
     zip_buffer = BytesIO()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
         for val1, df_lvl1 in combined_df.groupby(split_col_1):
@@ -176,54 +167,21 @@ if uploaded_file:
             if not enable_second_split:
                 base = folder_1
                 if "CSV" in output_formats:
-                    zip_file.writestr(
-                        f"{base}.csv",
-                        df_lvl1.drop(columns="geometry", errors="ignore").to_csv(index=False)
-                    )
+                    zip_file.writestr(f"{base}.csv", df_lvl1.drop(columns="geometry", errors="ignore").to_csv(index=False))
                 if "Excel" in output_formats:
                     buf = BytesIO()
                     df_lvl1.drop(columns="geometry", errors="ignore").to_excel(buf, index=False)
                     zip_file.writestr(f"{base}.xlsx", buf.getvalue())
-                if is_spatial:
-                    spatial = df_lvl1[df_lvl1.geometry.notnull()]
-                    if not spatial.empty:
-                        spatial = spatial.to_crs(epsg=4326)
-                        with tempfile.TemporaryDirectory() as tmp:
-                            if "GeoJSON" in output_formats:
-                                path = os.path.join(tmp, f"{base}.geojson")
-                                spatial.to_file(path, driver="GeoJSON")
-                                zip_file.writestr(f"{base}.geojson", open(path, "rb").read())
-                            if "KML" in output_formats:
-                                path = os.path.join(tmp, f"{base}.kml")
-                                spatial.to_file(path, driver="KML")
-                                zip_file.writestr(f"{base}.kml", open(path, "rb").read())
+
             else:
                 for val2, df_lvl2 in df_lvl1.groupby(split_col_2):
-                    file_name = safe_name(val2)
-                    base = f"{folder_1}/{file_name}"
+                    base = f"{folder_1}/{safe_name(val2)}"
                     if "CSV" in output_formats:
-                        zip_file.writestr(
-                            f"{base}.csv",
-                            df_lvl2.drop(columns="geometry", errors="ignore").to_csv(index=False)
-                        )
+                        zip_file.writestr(f"{base}.csv", df_lvl2.drop(columns="geometry", errors="ignore").to_csv(index=False))
                     if "Excel" in output_formats:
                         buf = BytesIO()
                         df_lvl2.drop(columns="geometry", errors="ignore").to_excel(buf, index=False)
                         zip_file.writestr(f"{base}.xlsx", buf.getvalue())
-                    if is_spatial:
-                        spatial = df_lvl2[df_lvl2.geometry.notnull()]
-                        if spatial.empty:
-                            continue
-                        spatial = spatial.to_crs(epsg=4326)
-                        with tempfile.TemporaryDirectory() as tmp:
-                            if "GeoJSON" in output_formats:
-                                path = os.path.join(tmp, f"{file_name}.geojson")
-                                spatial.to_file(path, driver="GeoJSON")
-                                zip_file.writestr(f"{base}.geojson", open(path, "rb").read())
-                            if "KML" in output_formats:
-                                path = os.path.join(tmp, f"{file_name}.kml")
-                                spatial.to_file(path, driver="KML")
-                                zip_file.writestr(f"{base}.kml", open(path, "rb").read())
 
     zip_buffer.seek(0)
     st.download_button(
@@ -232,4 +190,3 @@ if uploaded_file:
         file_name="Split_Data.zip",
         mime="application/zip"
     )
-
