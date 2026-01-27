@@ -24,7 +24,7 @@ st.markdown("<h3 style='text-align:center;'>Grouped Data Splitting Tool</h3>", u
 st.markdown(
     """
     <div style="text-align: justify; font-size: 16px;">
-        Upload a file or a ZIP folder containing multiple CSV, Excel, GeoJSON, or KML files.
+        Upload a ZIP folder containing multiple CSV, Excel, GeoJSON, or KML files.
         All files will be merged into a single dataset before splitting.
         Output formats: <b>CSV</b>, <b>Excel</b>, <b>GeoJSON</b>, <b>KML</b>.
     </div>
@@ -44,7 +44,7 @@ def convert_to_geodf(df):
         col for col in df.columns
         if col.lower() in {
             "gps_point", "gps_polygon", "plot_gps_point",
-            "plot_gps_polygon", "plot_wkt", "wkt", "geometry"
+            "plot_gps_polygon", "plot_wkt", "wkt", "WKT" "geometry"
         }
     ]
     for col in wkt_columns:
@@ -130,6 +130,11 @@ def load_and_merge_files(uploaded_file):
     return combined_df, file_count
 
 # ---------------- Upload ----------------
+st.config.set_option('server.maxUploadSize', 2048)
+st.set_page_config(page_title="File Viewer", layout="centered")
+
+st.markdown("<h3 style='text-align: left;'>📂 Upload Data</h3>", unsafe_allow_html=True)
+
 uploaded_file = st.file_uploader(
     "Upload CSV, Excel, GeoJSON, KML, or a ZIP folder",
     type=["csv", "xls", "xlsx", "geojson", "json", "kml", "zip"]
