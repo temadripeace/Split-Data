@@ -130,7 +130,6 @@ def load_and_merge_files(uploaded_file):
     return combined_df, file_count
 
 # ---------------- Upload ----------------
-st.config.set_option('server.maxUploadSize', 2048)
 st.set_page_config(page_title="File Viewer", layout="centered")
 
 st.markdown("<h3 style='text-align: left;'>📂 Upload Data</h3>", unsafe_allow_html=True)
@@ -233,3 +232,4 @@ if uploaded_file:
         file_name="Split_Data.zip",
         mime="application/zip"
     )
+
