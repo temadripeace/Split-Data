@@ -24,7 +24,7 @@ st.markdown("<h3 style='text-align:center;'>Grouped Data Splitting Tool</h3>", u
 st.markdown(
     """
     <div style="text-align: justify; font-size: 16px;">
-        Upload a ZIP folder containing multiple CSV, Excel, GeoJSON, or KML files.
+        Upload a file or a ZIP folder containing multiple CSV, Excel, GeoJSON, or KML files.
         All files will be merged into a single dataset before splitting.
         Output formats: <b>CSV</b>, <b>Excel</b>, <b>GeoJSON</b>, <b>KML</b>.
     </div>
